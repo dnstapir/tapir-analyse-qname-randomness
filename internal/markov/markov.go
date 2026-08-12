@@ -3,6 +3,7 @@ package markov
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 )
 
@@ -15,10 +16,35 @@ type Model struct {
 	TrainedNames int
 }
 
+// logProb marshals as a JSON number, or "-Inf" since JSON has no native
+// representation for infinity.
+type logProb float64
+
+func (p logProb) MarshalJSON() ([]byte, error) {
+	if math.IsInf(float64(p), -1) {
+		return json.Marshal("-Inf")
+	}
+	return json.Marshal(float64(p))
+}
+
+func (p *logProb) UnmarshalJSON(data []byte) error {
+	if string(data) == `"-Inf"` {
+		*p = logProb(math.Inf(-1))
+		return nil
+	}
+
+	var f float64
+	if err := json.Unmarshal(data, &f); err != nil {
+		return fmt.Errorf("invalid log-likelihood value %s: %w", data, err)
+	}
+	*p = logProb(f)
+	return nil
+}
+
 // on-disk representation of a Model
 type modelJSON struct {
-	Init        map[string]float64            `json:"init"`
-	Transitions map[string]map[string]float64 `json:"transitions"`
+	Init        map[string]logProb            `json:"init"`
+	Transitions map[string]map[string]logProb `json:"transitions"`
 
 	TrainedNames int `json:"trained_names"`
 }
@@ -30,13 +56,14 @@ func New() *Model {
 		TrainedNames: 0,
 	}
 
+	negInf := math.Inf(-1)
 	for i := range len(alphabet) {
 		char := alphabet[i]
-		m.Init[char] = 0
+		m.Init[char] = negInf
 
 		m.Transitions[char] = make(map[byte]float64, len(alphabet))
 		for j := range len(alphabet) {
-			m.Transitions[char][alphabet[j]] = 0
+			m.Transitions[char][alphabet[j]] = negInf
 		}
 	}
 
@@ -65,28 +92,26 @@ func (m *Model) Train(domains <-chan string) error {
 	}
 
 	for char, count := range initCounts {
-		m.Init[char] = float64(count) / float64(m.TrainedNames)
-		fmt.Printf("init[%c] = %f\n", char, m.Init[char])
+		m.Init[char] = math.Log(float64(count) / float64(m.TrainedNames))
 	}
 
 	for char, counts := range transitionCounts {
-		m.Transitions[char] = make(map[byte]float64, len(counts))
 		for nextChar, count := range counts {
-			m.Transitions[char][nextChar] = float64(count) / float64(transitionTotals[char])
-			fmt.Printf("transitions[%c][%c] = %f\n", char, nextChar, m.Transitions[char][nextChar])
+			m.Transitions[char][nextChar] = math.Log(float64(count)) / math.Log(float64(transitionTotals[char]))
 		}
 	}
 
 	return nil
 }
 
+// Score returns the total log-likelihood of domain.
 func (m *Model) Score(domain string) (float64, error) {
 	score := 0.0
 	for i := 0; i < len(domain); i++ {
 		if i == 0 {
 			score += m.Init[domain[i]]
 		} else {
-			score *= m.Transitions[domain[i-1]][domain[i]]
+			score += m.Transitions[domain[i-1]][domain[i]]
 		}
 	}
 	return score, nil
@@ -122,19 +147,19 @@ func Load(path string) (*Model, error) {
 
 func (m *Model) toJSON() modelJSON {
 	aux := modelJSON{
-		Init:         make(map[string]float64, len(m.Init)),
-		Transitions:  make(map[string]map[string]float64, len(m.Transitions)),
+		Init:         make(map[string]logProb, len(m.Init)),
+		Transitions:  make(map[string]map[string]logProb, len(m.Transitions)),
 		TrainedNames: m.TrainedNames,
 	}
 
 	for char, prob := range m.Init {
-		aux.Init[string(char)] = prob
+		aux.Init[string(char)] = logProb(prob)
 	}
 
 	for char, counts := range m.Transitions {
-		inner := make(map[string]float64, len(counts))
+		inner := make(map[string]logProb, len(counts))
 		for nextChar, prob := range counts {
-			inner[string(nextChar)] = prob
+			inner[string(nextChar)] = logProb(prob)
 		}
 		aux.Transitions[string(char)] = inner
 	}
@@ -153,7 +178,7 @@ func (aux *modelJSON) toModel() (*Model, error) {
 		if len(char) != 1 {
 			return nil, fmt.Errorf("invalid init key %q: expected a single character", char)
 		}
-		m.Init[char[0]] = prob
+		m.Init[char[0]] = float64(prob)
 	}
 
 	for char, counts := range aux.Transitions {
@@ -165,7 +190,7 @@ func (aux *modelJSON) toModel() (*Model, error) {
 			if len(nextChar) != 1 {
 				return nil, fmt.Errorf("invalid transitions[%q] key %q: expected a single character", char, nextChar)
 			}
-			inner[nextChar[0]] = prob
+			inner[nextChar[0]] = float64(prob)
 		}
 		m.Transitions[char[0]] = inner
 	}
