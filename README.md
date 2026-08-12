@@ -1,4 +1,36 @@
-# Configuration example
+# tapir-analyse-uniform-distribution
+
+This repository contains two binaries:
+
+- [cmd/tapir-analyse-uniform-distribution](cmd/tapir-analyse-uniform-distribution) -
+  the NATS-driven analyst service, which should flag incoming domains which seem to
+  be generated from a uniform distribution.
+- [cmd/train-domain-markov-model](cmd/train-domain-markov-model) - an offline
+  CLI tool for training a Markov model consumed by the service above. 
+
+## Repository layout
+
+- `cmd/` - entry points for the two binaries above.
+- `internal/` - shared packages: `api`, `app` (the service), and `corpus`,
+  `markov` (the training CLI and its model).
+- `data/` - training corpora and generated models. This folder is gitignored
+  (except for a small tracked example) since these files can be large and are
+  regenerable; keep your own corpora and trained models here locally.
+- `misc/` - auxiliary tooling that isn't part of the Go build, such as the
+  Python script used to turn a raw CSV domain list into a training corpus
+  (see [misc/parse_csv_to_corpus.py](misc/parse_csv_to_corpus.py)).
+
+## Training the Markov model
+
+```sh
+go run ./cmd/train-domain-markov-model -input data/domains.txt -output data/model.json
+```
+
+- `-input` (required): path to a file with one domain name per line. Blank
+  lines and lines starting with `#` are ignored.
+- `-output` (default `model.json`): where to write the trained model.
+
+## Configuration example
 ```toml
 # Debugging for entire app, CLI flag "-debug" has the same effect
 debug = true

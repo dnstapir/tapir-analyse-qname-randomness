@@ -6,3 +6,8 @@ coverage.out
 
 # Ignore configuration files
 *.toml
+
+# Training data, corpora, and generated models - large artifacts that
+# shouldn't be tracked. Keep a small tracked example as a reference.
+data/*
+!data/example_model.json
