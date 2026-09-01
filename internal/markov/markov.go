@@ -70,7 +70,14 @@ func New() *Model {
 	return m
 }
 
-func (m *Model) Train(domains <-chan string) error {
+// Train estimates log-likelihoods from domains. When k is 0, only observed
+// symbols and transitions are updated (unobserved stay at -Inf). When k > 0,
+// Laplace smoothing is applied over the full alphabet.
+func (m *Model) Train(domains <-chan string, k float64) error {
+	if k < 0 {
+		return fmt.Errorf("smoothing k must be >= 0, got %v", k)
+	}
+
 	var initCounts = make(map[byte]int)
 	var transitionCounts = make(map[byte]map[byte]int)
 	var transitionTotals = make(map[byte]int)
@@ -91,13 +98,38 @@ func (m *Model) Train(domains <-chan string) error {
 		}
 	}
 
-	for char, count := range initCounts {
-		m.Init[char] = math.Log(float64(count) / float64(m.TrainedNames))
+	vocabSize := len(alphabet)
+
+	if k == 0 {
+		for char, count := range initCounts {
+			m.Init[char] = math.Log(float64(count)) - math.Log(float64(m.TrainedNames))
+		}
+
+		for char, counts := range transitionCounts {
+			for nextChar, count := range counts {
+				m.Transitions[char][nextChar] = math.Log(float64(count)) - math.Log(float64(transitionTotals[char]))
+			}
+		}
+
+		return nil
 	}
 
-	for char, counts := range transitionCounts {
-		for nextChar, count := range counts {
-			m.Transitions[char][nextChar] = math.Log(float64(count)) / math.Log(float64(transitionTotals[char]))
+	for i := range vocabSize {
+		char := alphabet[i]
+		m.Init[char] = math.Log(float64(initCounts[char])+k) - math.Log(float64(m.TrainedNames)+k*float64(vocabSize))
+	}
+
+	for i := range vocabSize {
+		char := alphabet[i]
+		counts := transitionCounts[char]
+		total := transitionTotals[char]
+		for j := range vocabSize {
+			nextChar := alphabet[j]
+			count := 0
+			if counts != nil {
+				count = counts[nextChar]
+			}
+			m.Transitions[char][nextChar] = math.Log(float64(count)+k) - math.Log(float64(total)+k*float64(vocabSize))
 		}
 	}
 

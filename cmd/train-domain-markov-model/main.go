@@ -12,6 +12,7 @@ import (
 func main() {
 	var inputPath string
 	var outputPath string
+	var smoothingK float64
 
 	flag.StringVar(&inputPath,
 		"input",
@@ -22,6 +23,11 @@ func main() {
 		"output",
 		"model.json",
 		"Path to write the trained model to",
+	)
+	flag.Float64Var(&smoothingK,
+		"k",
+		0,
+		"Laplace smoothing parameter (0 = no smoothing, 1 = add-one)",
 	)
 	flag.Parse()
 
@@ -38,7 +44,7 @@ func main() {
 
 	model := markov.New()
 
-	if err := model.Train(domains); err != nil {
+	if err := model.Train(domains, smoothingK); err != nil {
 		fmt.Fprintf(os.Stderr, "training failed: %s\n", err)
 		os.Exit(1)
 	}
