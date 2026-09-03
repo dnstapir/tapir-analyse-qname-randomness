@@ -11,3 +11,6 @@ coverage.out
 # shouldn't be tracked. Keep a small tracked example as a reference.
 data/*
 !data/example_model.json
+
+# Ignore build artifacts
+out/
