@@ -149,6 +149,14 @@ func (m *Model) Score(domain string) (float64, error) {
 	return score, nil
 }
 
+func (m *Model) ScoreNormalized(domain string) (float64, error) {
+	score, err := m.Score(domain)
+	if err != nil {
+		return 0, err
+	}
+	return score / float64(len(domain)), nil
+}
+
 func (m *Model) Save(path string) error {
 	f, err := os.Create(path)
 	if err != nil {
