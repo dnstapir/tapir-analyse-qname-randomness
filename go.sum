@@ -1,7 +1,7 @@
 github.com/dnstapir/edm v0.0.0-20260226140325-d0441597d9e7 h1:iu3dtBFVW58alLOy4A6f/hyd/8XmokfKZJ/JPcP4lKU=
 github.com/dnstapir/edm v0.0.0-20260226140325-d0441597d9e7/go.mod h1:HZaurgLX4rzgRotcHywFO0epgeVMTs4hFUwnxMu76P0=
-github.com/dnstapir/tapir-analyse-lib v0.0.0-20260414104340-0e06dc6a4691 h1:nAh8TAnaoEG3dL/QNeogYSaSbznIV2lzf82F7MGzUTY=
-github.com/dnstapir/tapir-analyse-lib v0.0.0-20260414104340-0e06dc6a4691/go.mod h1:40Qa1ffewXPK41MZgpTSTt7Yvu80wA7A9bfNyYpP6nc=
+github.com/dnstapir/tapir-analyse-lib v0.0.0-20260416203222-e3559262cc1e h1:p6MRtV4l3wpMb293Wq6DnYpKLlea8weorJWPLY8rWUg=
+github.com/dnstapir/tapir-analyse-lib v0.0.0-20260416203222-e3559262cc1e/go.mod h1:40Qa1ffewXPK41MZgpTSTt7Yvu80wA7A9bfNyYpP6nc=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBFW2IE=

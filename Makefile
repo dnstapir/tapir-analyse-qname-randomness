@@ -36,4 +36,4 @@ clean:
 	-rm -rf $(OUT)
 
 ko:
-	ko build -L -B ./cmd/tapir-analyse-uniform-distribution
+	ko build -L -B ./cmd/tapir-analyse-dga-scorer

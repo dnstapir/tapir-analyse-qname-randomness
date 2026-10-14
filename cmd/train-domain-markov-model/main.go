@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dnstapir/tapir-analyse-uniform-distribution/internal/corpus"
-	"github.com/dnstapir/tapir-analyse-uniform-distribution/internal/markov"
+	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/corpus"
+	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/markov"
 )
 
 func main() {
