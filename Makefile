@@ -36,4 +36,4 @@ clean:
 	-rm -rf $(OUT)
 
 ko:
-	ko build -L -B ./cmd/tapir-analyse-dga-scorer
+	ko build -L -B ./cmd/tapir-analyse-qname-randomness

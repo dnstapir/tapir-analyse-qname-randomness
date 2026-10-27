@@ -3,7 +3,7 @@ package classifier
 import (
 	"fmt"
 
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/markov"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/markov"
 )
 
 type Class int

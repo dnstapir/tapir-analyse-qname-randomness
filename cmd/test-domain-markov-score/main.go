@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/markov"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/markov"
 )
 
 var (

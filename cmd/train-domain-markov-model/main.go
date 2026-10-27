@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/corpus"
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/markov"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/corpus"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/markov"
 )
 
 func main() {

@@ -14,13 +14,13 @@ import (
 	"github.com/dnstapir/tapir-analyse-lib/logger"
 	"github.com/dnstapir/tapir-analyse-lib/nats"
 
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/api"
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/app"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/api"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/app"
 )
 
 const env_DNSTAPIR_NATS_URL = "DNSTAPIR_NATS_URL"
 
-const c_ANALYST_IDENTIFIER = "tapir-analyse-dga-scorer"
+const c_ANALYST_IDENTIFIER = "tapir-analyse-qname-randomness"
 
 /* Rewritten if building with make */
 var commit = "BAD-BUILD"

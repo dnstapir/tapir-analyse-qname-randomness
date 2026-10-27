@@ -1,4 +1,4 @@
-module github.com/dnstapir/tapir-analyse-dga-scorer
+module github.com/dnstapir/tapir-analyse-qname-randomness
 
 go 1.26.5
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/markov"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/markov"
 )
 
 func TestCreateRequiresModelPath(t *testing.T) {

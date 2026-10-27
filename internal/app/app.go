@@ -11,7 +11,7 @@ import (
 	"github.com/dnstapir/tapir-analyse-lib/common"
 	"github.com/dnstapir/tapir-analyse-lib/libtapir"
 
-	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/classifier"
+	"github.com/dnstapir/tapir-analyse-qname-randomness/internal/classifier"
 )
 
 const c_N_HANDLERS = 3

@@ -1,8 +1,8 @@
-# tapir-analyse-dga-scorer
+# tapir-analyse-qname-randomness
 
 This repository contains two binaries:
 
-- [cmd/tapir-analyse-dga-scorer](cmd/tapir-analyse-dga-scorer) -
+- [cmd/tapir-analyse-qname-randomness](cmd/tapir-analyse-qname-randomness) -
   the NATS-driven analyst service, which should flag incoming domains which seem to
   be generated from a uniform distribution.
 - [cmd/train-domain-markov-model](cmd/train-domain-markov-model) - an offline
@@ -77,7 +77,7 @@ create = false
 # Configuration for this analysts private bucket that it can use for arbitrary data
 [nats.private_bucket]
 # Bucket name, ensure it's unique if there are multiple instances of this analyst
-name = "private_tapir-analyse-dga-scorer"
+name = "private_tapir-analyse-qname-randomness"
 
 # Should this analyst create the bucket? Typically yes for private buckets
 create = true
