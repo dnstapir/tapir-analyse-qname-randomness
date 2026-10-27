@@ -3,30 +3,36 @@ package app
 import (
 	"context"
 	"math"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/dnstapir/tapir-analyse-lib/common"
+	"github.com/dnstapir/tapir-analyse-lib/libtapir"
+
+	"github.com/dnstapir/tapir-analyse-dga-scorer/internal/classifier"
 )
 
 const c_N_HANDLERS = 3
 const c_NATS_DELIM = common.NATS_DELIM
 
 type Conf struct {
-	Debug      bool `toml:"debug"`
-	Interval   int  `toml:"interval"`
+	Debug    bool `toml:"debug"`
+	Interval int  `toml:"interval"`
+	classifier.Conf
 	AnalystID  string
 	Log        common.Logger
 	NatsHandle nats
 }
 
 type appHandle struct {
-	id          string
-	observation string
-	log         common.Logger
-	natsHandle  nats
-	ticker      *time.Ticker
-	exitCh      chan<- common.Exit
+	id               string
+	log              common.Logger
+	classifierHandle *classifier.Classifier
+	natsHandle       nats
+	ticker           *time.Ticker
+	exitCh           chan<- common.Exit
 	pm
 }
 
@@ -64,12 +70,19 @@ func Create(conf Conf) (*appHandle, error) {
 	}
 	a.id = conf.AnalystID
 
+	c, err := classifier.Create(conf.Conf)
+	if err != nil {
+		a.log.Error("Could not create classifier: %s", err)
+		return nil, err
+	}
+	a.classifierHandle = c
+
 	if conf.Interval > 0 {
 		a.ticker = time.NewTicker(time.Duration(conf.Interval) * time.Second)
 	} else {
 		a.ticker = time.NewTicker(time.Duration(math.MaxInt32) * time.Second)
 		a.ticker.Stop()
-		a.log.Warning("No interval set. Won't refresh list.")
+		a.log.Warning("No interval set. Periodic tasks disabled.")
 	}
 
 	a.log.Debug("Main app debug logging enabled")
@@ -159,13 +172,7 @@ func (a *appHandle) handleJob(ctx context.Context, j job) {
 }
 
 func (a *appHandle) handleTick(ctx context.Context, epoch int64) {
-	a.log.Debug("Received tick '%d'", epoch)
-	if epoch == 0 {
-		a.log.Debug("Tick had zero value, probably garbage. Won't handle...")
-		return
-	}
-
-	panic("not impl")
+	a.log.Debug("Received tick '%d' (no periodic work configured)", epoch)
 }
 
 func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
@@ -175,5 +182,79 @@ func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
 		return
 	}
 
-	panic("not impl")
+	msgDomain, err := libtapir.ExtractDomain(msg.Data)
+	if err != nil {
+		a.log.Error("Error reading domain from message: %s", err)
+		return
+	}
+	a.log.Debug("Extracted domain %q", msgDomain)
+
+	if strings.Contains(msgDomain, "_") {
+		a.log.Debug("Domain %q contains underscore, skipping", msgDomain)
+		return
+	}
+
+	if !libtapir.HasValidETLD(msgDomain) {
+		a.log.Debug("Domain %q did not have valid eTLD, ignoring...", msgDomain)
+		return
+	}
+
+	etldPlusOne, err := libtapir.GetETLDPlusOne(msgDomain)
+	if err != nil {
+		a.log.Debug("Could not get eTLD+1 for %q: %s", msgDomain, err)
+		return
+	}
+
+	if msgDomain != etldPlusOne {
+		a.log.Debug("Domain %q is deeper than eTLD+1 %q, skipping", msgDomain, etldPlusOne)
+		return
+	}
+
+	label := leftmostLabel(etldPlusOne)
+	if label == "" {
+		a.log.Debug("Could not extract leftmost label from %q, skipping", etldPlusOne)
+		return
+	}
+
+	if isIDN(label) || isIDN(msgDomain) {
+		a.log.Debug("Domain %q (label %q) looks like IDN, skipping", msgDomain, label)
+		return
+	}
+
+	class, score, err := a.classifierHandle.Classify(label)
+	if err != nil {
+		a.log.Error("Error classifying %q (label %q): %s", msgDomain, label, err)
+		return
+	}
+
+	a.log.Debug("Domain %q label %q score %f class %s", msgDomain, label, score, class)
+
+	if class == classifier.LikelyDGA {
+		a.log.Info("Likely DGA: domain %q label %q score %f", msgDomain, label, score)
+	} else {
+		a.log.Debug("Not DGA: domain %q label %q score %f", msgDomain, label, score)
+	}
+}
+
+func leftmostLabel(etldPlusOne string) string {
+	trimmed := strings.Trim(etldPlusOne, ".")
+	if trimmed == "" {
+		return ""
+	}
+	label, _, _ := strings.Cut(trimmed, ".")
+	return label
+}
+
+func isIDN(name string) bool {
+	for _, r := range name {
+		if r > unicode.MaxASCII {
+			return true
+		}
+	}
+	for _, part := range strings.Split(strings.Trim(name, "."), ".") {
+		if strings.HasPrefix(part, "xn--") {
+			return true
+		}
+	}
+	return false
 }
