@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +19,9 @@ const c_N_HANDLERS = 3
 const c_NATS_DELIM = common.NATS_DELIM
 
 type Conf struct {
-	Debug    bool `toml:"debug"`
-	Interval int  `toml:"interval"`
+	Debug    bool   `toml:"debug"`
+	Interval int    `toml:"interval"`
+	Tag      string `toml:"tag"`
 	classifier.Conf
 	AnalystID  string
 	Log        common.Logger
@@ -30,6 +32,7 @@ type appHandle struct {
 	id               string
 	log              common.Logger
 	classifierHandle *classifier.Classifier
+	tag              string
 	natsHandle       nats
 	ticker           *time.Ticker
 	exitCh           chan<- common.Exit
@@ -48,6 +51,7 @@ type job struct {
 type nats interface {
 	ActivateSubscription(context.Context) (<-chan common.NatsMsg, error)
 	SetObservation(context.Context, string, string) error
+	SetTagStr(context.Context, string, string, string) error
 	Shutdown() error
 }
 
@@ -76,6 +80,12 @@ func Create(conf Conf) (*appHandle, error) {
 		return nil, err
 	}
 	a.classifierHandle = c
+
+	if conf.Tag == "" {
+		a.log.Error("Bad tag during creation")
+		return nil, common.ErrBadParam
+	}
+	a.tag = conf.Tag
 
 	if conf.Interval > 0 {
 		a.ticker = time.NewTicker(time.Duration(conf.Interval) * time.Second)
@@ -231,6 +241,11 @@ func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
 
 	if class == classifier.LikelyDGA {
 		a.log.Info("Likely DGA: domain %q label %q score %f", msgDomain, label, score)
+		err := a.natsHandle.SetTagStr(ctx, msgDomain, a.tag, "{\"score\": "+strconv.FormatFloat(score, 'f', -1, 64)+", \"model\": \"PLACEHOLDER\"}")
+		if err != nil {
+			a.log.Error("Error setting '%s' tag for '%s': %s", a.tag, msgDomain, err)
+			return
+		}
 	} else {
 		a.log.Debug("Not DGA: domain %q label %q score %f", msgDomain, label, score)
 	}
