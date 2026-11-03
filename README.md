@@ -1,95 +1,119 @@
 # tapir-analyse-qname-randomness
 
-This repository contains two binaries:
+DNS TAPIR analyst that tags domains whose names look randomly generated, as
+many DGA domains do. It reads new-qname events from NATS, scores each domain
+with a character-level Markov model and tags the domain if the score is below
+a threshold.
 
-- [cmd/tapir-analyse-qname-randomness](cmd/tapir-analyse-qname-randomness) -
-  the NATS-driven analyst service, which should flag incoming domains which seem to
-  be generated from a uniform distribution.
-- [cmd/train-domain-markov-model](cmd/train-domain-markov-model) - an offline
-  CLI tool for training a Markov model consumed by the service above. 
+## How it works
 
-## Repository layout
+For each event the analyst:
 
-- `cmd/` - entry points for the two binaries above.
-- `internal/` - shared packages: `api`, `app` (the service), `classifier`
-  (Markov DGA classification), and `corpus`, `markov` (the training CLI and
-  its model).
-- `data/` - training corpora and generated models. This folder is gitignored
-  (except for a small tracked example) since these files can be large and are
-  regenerable; keep your own corpora and trained models here locally.
-- `misc/` - auxiliary tooling that isn't part of the Go build, such as the
-  Python script used to turn a raw CSV domain list into a training corpus
-  (see [misc/parse_csv_to_corpus.py](misc/parse_csv_to_corpus.py)).
+1. Skips the domain if it contains `_`, has no valid public suffix, is an IDN,
+   or is a subdomain (only eTLD+1 names are scored).
+2. Takes the label left of the public suffix (`example` in `example.co.uk`).
+3. Scores that label: the model's log-probability of the first character plus
+   each character transition, divided by the label length.
+4. If the score is strictly below `threshold`, sets `tag` on the domain. The
+   tag value is `{"score": <score>, "model": "PLACEHOLDER"}`.
 
-## Training the Markov model
+## Binaries
+
+- `cmd/tapir-analyse-qname-randomness`: the analyst service.
+- `cmd/train-domain-markov-model`: trains a model from a list of labels.
+- `cmd/test-domain-markov-score`: scores labels with a model, for choosing a
+  threshold.
+
+## Build
 
 ```sh
-go run ./cmd/train-domain-markov-model -input data/domains.txt -output data/model.json
+make          # all binaries into out/
+make test
+make ko       # container image of the service into the local Docker daemon
 ```
 
-- `-input` (required): path to a file with one domain name per line. Blank
-  lines and lines starting with `#` are ignored.
-- `-output` (default `model.json`): where to write the trained model.
+## Run
 
-## Configuration example
+```sh
+out/tapir-analyse-qname-randomness -config config.toml
+```
+
+Flags: `-config` (default `config.toml`), `-debug`, `-version`. The
+`DNSTAPIR_NATS_URL` environment variable overrides `nats.url`.
+
+Example `config.toml`:
+
 ```toml
-# Debugging for entire app, CLI flag "-debug" has the same effect
-debug = true
+debug = false
 
-# Interval at which periodic tasks can be executed, if needed
-interval = 120
+# Trained model to load (required)
+model_path = "data/models/se_min8_k1_model.json"
 
-# Path to a trained Markov model JSON file (required)
-model_path = "data/models/se_min8_k2_model.json"
+# Labels scoring below this are tagged. Retune whenever the model changes.
+threshold = -4.0
 
-# Normalized log-likelihood breakpoint: score < threshold => likely DGA.
-# This value is model-dependent; retune when changing training data or smoothing.
-threshold = -5.0
+# Tag set on flagged domains (required)
+tag = "seemingly_random"
 
-# NATS configuration
 [nats]
-# Debugging NATS parts only
-debug = true
-
-# URL where NATS server can be found, can also be set via env "DNSTAPIR_NATS_URL"
+debug = false
 url = "nats://localhost:4222"
-
-# Subject for listening to incoming events that typically drive the analyst
 event_subject = "internal.events.new_qname"
+tag_subject_prefix = "internal.tags"
 
-# Subject prefix used when when setting observation flags for a domain
-observation_subject_prefix = "internal.observations"
+# Must already exist unless create = true
+[nats.tag_bucket]
+name = "tag_bucket"
 
-# Configuration for observation buckets
-[[nats.observation_buckets]]
-# What is the name of the NATS bucket that will contain the observations?
-name = "<BUCKET NAME>"
-
-# What is the observation we are trying to set?
-observation = "<OBSERVATION NAME>"
-
-# Time-to-live for the observations in this bucket
-ttl = 10
-
-# Should this analyst create the bucket? Observation buckets are typically pre-provisioned
-create = false
-
-# Configuration for this analysts private bucket that it can use for arbitrary data
-[nats.private_bucket]
-# Bucket name, ensure it's unique if there are multiple instances of this analyst
-name = "private_tapir-analyse-qname-randomness"
-
-# Should this analyst create the bucket? Typically yes for private buckets
-create = true
-
-# Configuration for the "seen domains" bucket which keeps track of seen domains
-# Keys in this bucket do not expire
-# Should only be used by a dedicated analyst such as github.com/dnstapir/tapir-analyse-new-qname
-[nats.seen_domains_bucket]
-# Bucket name
-name = "seen_domains"
-
-# Should this analyst create the bucket? Most of the time, the answer is no
-create = false
-
+[api]
+active = false
 ```
+
+The service exits on unknown config keys.
+
+## Train a model
+
+The trainer reads one label per line, lowercase `a-z`, `0-9` and `-` only.
+Blank lines and lines starting with `#` are skipped.
+`misc/parse_csv_to_corpus.py` builds such a file from a CSV of domains (run it
+with `-h` for its filters):
+
+```sh
+pip install -r misc/requirements.txt
+python3 misc/parse_csv_to_corpus.py domains.csv data/parsed/labels.txt --column 1
+go run ./cmd/train-domain-markov-model -input data/parsed/labels.txt \
+    -output data/models/model.json -k 1
+```
+
+`-k` is the Laplace smoothing constant. With the default `-k 0`, a transition
+never seen in training has probability zero, so any label containing one
+scores `-Inf` and gets tagged.
+
+`data/` is gitignored. Keep corpora and models there.
+
+## Choose a threshold
+
+```sh
+# One label
+go run ./cmd/test-domain-markov-score -model data/models/model.json -domain example
+
+# One label per line (or - for stdin). Writes scores.csv sorted by score and
+# prints how many labels fall in each score interval of width 1.
+go run ./cmd/test-domain-markov-score -model data/models/model.json \
+    -input labels.txt -output scores.csv
+```
+
+Score a list of legitimate labels and a list of random or DGA labels, then
+pick a threshold between the two distributions.
+
+## Python helpers
+
+In `misc/`, not part of the Go build:
+
+- `parse_csv_to_corpus.py`: CSV of domains to training corpus.
+- `generate_random_domains.py`: random `a-z0-9` labels for testing.
+- `score_dga_families.py`: scores a folder of DGA family CSVs (one CSV per
+  family, e.g. a DGArchive export) with one or more models and thresholds,
+  and writes detection rates per family.
+- `plot_dga_family_scores.py`: plots score ranges from
+  `score_dga_families.py` output.
