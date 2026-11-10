@@ -1,6 +1,6 @@
 # tapir-analyse-qname-randomness
 
-DNS TAPIR analyst that tags domains whose names look randomly generated, as
+DNS TAPIR microanalyst that tags domains whose names look randomly generated, as
 many DGA domains do. It reads new-qname events from NATS, scores each domain
 with a character-level Markov model and tags the domain if the score is below
 a threshold.
