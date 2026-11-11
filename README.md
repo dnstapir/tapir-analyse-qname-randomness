@@ -58,6 +58,9 @@ tag = "seemingly_random"
 # Domains to filter out, including their subdomains (optional)
 ignore_suffixes = ["looptest.dnstapir.se", "translate.goog"]
 
+# Labels shorter than this are not scored (optional, default 0)
+min_label_length = 8
+
 [nats]
 debug = false
 url = "nats://localhost:4222"

@@ -23,6 +23,7 @@ type Conf struct {
 	Interval       int      `toml:"interval"`
 	Tag            string   `toml:"tag"`
 	IgnoreSuffixes []string `toml:"ignore_suffixes"`
+	MinLabelLength int      `toml:"min_label_length"`
 	classifier.Conf
 	AnalystID  string
 	Log        common.Logger
@@ -35,6 +36,7 @@ type appHandle struct {
 	classifierHandle *classifier.Classifier
 	tag              string
 	ignoreSuffixes   map[string]struct{}
+	minLabelLength   int
 	natsHandle       nats
 	ticker           *time.Ticker
 	exitCh           chan<- common.Exit
@@ -102,6 +104,12 @@ func Create(conf Conf) (*appHandle, error) {
 	if len(a.ignoreSuffixes) > 0 {
 		a.log.Info("Ignoring domains under %d configured suffixes", len(a.ignoreSuffixes))
 	}
+
+	if conf.MinLabelLength < 0 {
+		a.log.Error("Bad min_label_length %d during creation", conf.MinLabelLength)
+		return nil, common.ErrBadParam
+	}
+	a.minLabelLength = conf.MinLabelLength
 
 	if conf.Interval > 0 {
 		a.ticker = time.NewTicker(time.Duration(conf.Interval) * time.Second)
@@ -249,6 +257,11 @@ func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
 
 	if isIDN(label) || isIDN(msgDomain) {
 		a.log.Debug("Domain %q (label %q) looks like IDN, skipping", msgDomain, label)
+		return
+	}
+
+	if len(label) < a.minLabelLength {
+		a.log.Debug("Label %q shorter than %d characters, skipping", label, a.minLabelLength)
 		return
 	}
 
