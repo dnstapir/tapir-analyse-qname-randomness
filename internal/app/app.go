@@ -285,7 +285,7 @@ func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
 	}
 }
 
-/* Check the domain and each of its parents against the ignore list */
+// matchesIgnoredSuffix checks the domain and each of its parents against the ignore list.
 func matchesIgnoredSuffix(domain string, suffixes map[string]struct{}) (string, bool) {
 	for d := domain; d != "" && d != "."; {
 		if _, ok := suffixes[d]; ok {
