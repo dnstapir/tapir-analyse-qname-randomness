@@ -19,9 +19,10 @@ const c_N_HANDLERS = 3
 const c_NATS_DELIM = common.NATS_DELIM
 
 type Conf struct {
-	Debug    bool   `toml:"debug"`
-	Interval int    `toml:"interval"`
-	Tag      string `toml:"tag"`
+	Debug          bool     `toml:"debug"`
+	Interval       int      `toml:"interval"`
+	Tag            string   `toml:"tag"`
+	IgnoreSuffixes []string `toml:"ignore_suffixes"`
 	classifier.Conf
 	AnalystID  string
 	Log        common.Logger
@@ -33,6 +34,7 @@ type appHandle struct {
 	log              common.Logger
 	classifierHandle *classifier.Classifier
 	tag              string
+	ignoreSuffixes   map[string]struct{}
 	natsHandle       nats
 	ticker           *time.Ticker
 	exitCh           chan<- common.Exit
@@ -86,6 +88,20 @@ func Create(conf Conf) (*appHandle, error) {
 		return nil, common.ErrBadParam
 	}
 	a.tag = conf.Tag
+
+	a.ignoreSuffixes = make(map[string]struct{})
+	for _, s := range conf.IgnoreSuffixes {
+		suf := libtapir.NormalizeDomainName(s)
+		if suf == "." {
+			/* The root would match every domain */
+			a.log.Warning("Ignoring empty or root entry %q in ignore_suffixes", s)
+			continue
+		}
+		a.ignoreSuffixes[suf] = struct{}{}
+	}
+	if len(a.ignoreSuffixes) > 0 {
+		a.log.Info("Ignoring domains under %d configured suffixes", len(a.ignoreSuffixes))
+	}
 
 	if conf.Interval > 0 {
 		a.ticker = time.NewTicker(time.Duration(conf.Interval) * time.Second)
@@ -199,6 +215,11 @@ func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
 	}
 	a.log.Debug("Extracted domain %q", msgDomain)
 
+	if suf, ok := matchesIgnoredSuffix(msgDomain, a.ignoreSuffixes); ok {
+		a.log.Debug("Domain %q matches ignored suffix %q, skipping", msgDomain, suf)
+		return
+	}
+
 	if strings.Contains(msgDomain, "_") {
 		a.log.Debug("Domain %q contains underscore, skipping", msgDomain)
 		return
@@ -249,6 +270,17 @@ func (a *appHandle) handleMsg(ctx context.Context, msg common.NatsMsg) {
 	} else {
 		a.log.Debug("Not DGA: domain %q label %q score %f", msgDomain, label, score)
 	}
+}
+
+/* Check the domain and each of its parents against the ignore list */
+func matchesIgnoredSuffix(domain string, suffixes map[string]struct{}) (string, bool) {
+	for d := domain; d != "" && d != "."; {
+		if _, ok := suffixes[d]; ok {
+			return d, true
+		}
+		_, d, _ = strings.Cut(d, ".")
+	}
+	return "", false
 }
 
 func leftmostLabel(etldPlusOne string) string {

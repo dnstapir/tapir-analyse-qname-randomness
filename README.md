@@ -55,6 +55,9 @@ threshold = -4.0
 # Tag set on flagged domains (required)
 tag = "seemingly_random"
 
+# Domains to filter out, including their subdomains (optional)
+ignore_suffixes = ["looptest.dnstapir.se", "translate.goog"]
+
 [nats]
 debug = false
 url = "nats://localhost:4222"

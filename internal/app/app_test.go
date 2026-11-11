@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/dnstapir/tapir-analyse-lib/libtapir"
+)
 
 func TestLeftmostLabel(t *testing.T) {
 	tests := []struct {
@@ -28,5 +32,34 @@ func TestIsIDN(t *testing.T) {
 	}
 	if isIDN("example.com.") {
 		t.Error("expected ASCII domain not to be IDN")
+	}
+}
+
+func TestMatchesIgnoredSuffix(t *testing.T) {
+	suffixes := map[string]struct{}{
+		libtapir.NormalizeDomainName("example.com"):    {},
+		libtapir.NormalizeDomainName("translate.goog"): {},
+	}
+	tests := []struct {
+		domain string
+		want   bool
+	}{
+		{"example.com.", true},
+		{"www.example.com.", true},
+		{"www-valkwijn-nl.translate.goog.", true},
+		{"notexample.com.", false},
+		{"example.com.evil.net.", false},
+		{"example.org.", false},
+		{"com.", false},
+	}
+	for _, tt := range tests {
+		_, got := matchesIgnoredSuffix(tt.domain, suffixes)
+		if got != tt.want {
+			t.Errorf("matchesIgnoredSuffix(%q) = %t, want %t", tt.domain, got, tt.want)
+		}
+	}
+
+	if _, got := matchesIgnoredSuffix("example.com.", nil); got {
+		t.Error("expected no match with no suffixes configured")
 	}
 }
